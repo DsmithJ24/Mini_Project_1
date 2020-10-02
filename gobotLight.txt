@@ -1,0 +1,187 @@
+package main
+
+import (
+        "fmt"
+        "gobot.io/x/gobot"
+        "gobot.io/x/gobot/drivers/aio"
+        g "gobot.io/x/gobot/platforms/dexter/gopigo3"
+        "gobot.io/x/gobot/platforms/raspi"
+        "time"
+)
+
+//int MAX_READ := 3157
+//int MIN_READ := 1474
+//need to fix these vars
+
+func main() {
+        //2 functions are needed
+        //first is to spin/search for a bright light in minimum reading
+        //once that min reading has been found, move the robot
+        raspiAdaptor := raspi.NewAdaptor()
+        gopigo3 := g.NewDriver(raspiAdaptor)
+        lightSensor:= aio.NewGroveLightSensorDriver(gopigo3, "AD_1_1")
+
+//first is to take constant readings, get constant values
+                //determine commanded to give it based on intensity
+                //if increases, go forward
+                //if dereases, stop, save value stops on, turn right until incr$
+                //do this until max value is read, end loop
+
+
+        reading := func()(sensorVal int) {
+                sensorVal, err := lightSensor.Read()
+                if err!=nil{
+                        fmt.Errorf("Error reading sensor %+v", err)
+                }
+                return sensorVal
+
+//need to turn the robot to max reading
+//need if statements for the range of the light reading
+//also need statements to ignore 0 readings
+        }
+
+//define function within a function
+        drive := func() {
+                on := uint8(0xFF)
+                gobot.Every(1000*time.Millisecond, func() {
+                        err := gopigo3.SetLED(g.LED_EYE_RIGHT, 0x00, 0x00, on)
+                        if err != nil {
+                                fmt.Println(err)
+                        }
+                        err = gopigo3.SetLED(g.LED_EYE_LEFT, ^on, 0x00, 0x00)
+                        if err != nil {
+                                fmt.Println(err)
+                        }
+                         on = ^on
+                //raspiAdaptor := raspi.NewAdaptor()
+                //gopigo3 := g.NewDriver(raspiAdaptor)
+                gopigo3.SetMotorDps(g.MOTOR_LEFT + g.MOTOR_RIGHT, 180)
+                time.Sleep(time.Second)
+                gopigo3.Halt()
+				//do we need this?
+                })
+        }
+
+        turn_left:= func(){
+                gopigo3.SetMotorDps(g.MOTOR_RIGHT, 180)
+                time.Sleep(time.Second)
+                gopigo3.Halt()
+        }
+
+        turn_right:= func(){
+                gopigo3.SetMotorDps(g.MOTOR_LEFT, 180)
+                time.Sleep(time.Second)
+                gopigo3.Halt()
+
+        }
+
+        turn:= func(){
+
+				//take reading
+                initial_read := reading()
+                //this is initial reading, see if next value is less than this
+                turn_right()
+                reading_comp1 := reading()
+                reading_comp2 := initial_read
+                for(reading_comp1 <= initial_read-10){
+
+                        //need a check/then for 0
+                        if reading_comp1-10 < reading_comp2{
+//                              fmt.Println("turning left")
+                        //      turn_left()
+                        //      turn_left()
+                        //      reading_comp1 = reading()
+
+                        }else if(reading_comp1 >= initial_read-10){
+                                break;
+								                                break;
+                        }else{
+                                turn_right()
+                                reading_comp2 := reading()
+                                for (reading_comp2 > reading_comp1-10){
+                                        reading_comp1 = reading_comp2
+                                //      fmt.Println("comp1", reading_comp1)
+                                        turn_right()
+                                        time.Sleep(time.Second)
+                                        reading_comp2 = reading()
+                                //      fmt.Println("comp2", reading_comp2)
+                                }
+                        }
+
+                        if reading_comp2-10  <  reading_comp1{
+                        //      fmt.Println("turning right")
+                        //      turn_right()
+                        //      turn_right()
+                                reading_comp2 = reading()
+
+                        }else if(reading_comp1 >= initial_read-10){
+                                break;
+                        }else{
+                                turn_left()
+                                reading_comp1 = reading()
+                                for (reading_comp2-5 < reading_comp1){
+                                        reading_comp2 = reading_comp1
+                                        //fmt.Println(reading_comp2)
+                                        turn_left()
+                                        time.Sleep(time.Second)
+                                        reading_comp1 = reading()
+										                                }
+                        }
+                        //fmt.Println("right")
+                }
+                fmt.Println("turn done")
+                gopigo3.Halt()
+        }
+
+        selfcorrect:= func(){
+                //start by spinning arround to find max value,
+                //that is starting reading
+                turn()
+                drive()
+
+                reading_light1 := reading()
+                if reading_light1 == 0{
+                        reading_light1 = reading()
+                }
+				for (reading_light1 < 2700-10){
+				        reading_light2 := reading()
+                        if reading_light2 == 0{
+                                reading_light2 = reading()
+                        }
+
+                        if reading_light1 > reading_light2+10{
+                                turn()
+                                reading_light1 = reading()
+                        if reading_light2 == 0{
+                                reading_light2 = reading()
+                        }
+
+                        if reading_light1 > reading_light2+10{
+                                turn()
+                                reading_light1 = reading()
+
+                                if reading_light1 == 0{
+                                        reading_light1 = reading()
+                                }
+
+                                fmt.Println("drive")
+                                //drive()
+
+                        } else if(reading_light1 >= 2700-10){
+                                fmt.Print("done")
+                                gopigo3.Halt()
+                        }else{
+                                //fmt.Println("no correction, driving")
+                                reading_light1 = reading_light2
+                        }
+
+                }
+        }
+
+        robot := gobot.NewRobot("gopigoMovement3",
+        []gobot.Connection{raspiAdaptor},
+        []gobot.Device{gopigo3, lightSensor},
+        drive, reading, turn_left, turn_right, turn, selfcorrect,
+        )
+        robot.Start()
+}
