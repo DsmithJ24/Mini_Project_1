@@ -5,6 +5,8 @@ Alan Lacerda
 Daniel Smith
 Nickson Dos Santos
 
+(Submitted is a .txt version of the .go program used in the actual assignment)
+
 This project is our submission for the mini-project 1. The goal is to have a robot seek out a light source and move to it using a light sensor.
 Our code uses only one light sensor instead of two. A few functions such as the reading() and drive() were based on the test programs used in class.
 The propriety functions created are turn() and self_correct(). Self_correct() has the robot turn to seek out the general direction of the light source.
